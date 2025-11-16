@@ -16,16 +16,16 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f" Usando dispositivo: {device}")
 
 PATCH_SIZE = 299   # Inception-v4 requer 299x299
-BATCH_SIZE = 2
+BATCH_SIZE = 8
 NUM_CLASSES = 2    # 0 = normal, 1 = DTM
 LR = 1e-4
-EPOCHS = 25
+EPOCHS = 29
 
 # rotas para os datasets
 DATASET_ROOT = r"C:\Users\pichombas\Documents\pasta de raio x"
 TRAIN_DIR = os.path.join(DATASET_ROOT, "treino_patches_frontal")
-VAL_DIR = os.path.join(DATASET_ROOT, "validação")
-TEST_DIR = os.path.join(DATASET_ROOT, "teste_patches")
+VAL_DIR = os.path.join(DATASET_ROOT, "validação_patches_frontal")
+TEST_DIR = os.path.join(DATASET_ROOT, "teste_patches_frontal")
 
 #processamento e transformações
 
@@ -42,9 +42,9 @@ train_dataset = datasets.ImageFolder(root=TRAIN_DIR, transform=transform)
 val_dataset = datasets.ImageFolder(root=VAL_DIR, transform=transform)
 test_dataset = datasets.ImageFolder(root=TEST_DIR, transform=transform)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory= True, persistent_workers= True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory= True, persistent_workers= True)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory= True, persistent_workers= True)
 
 print(f"Total de patches - Treino: {len(train_dataset)}, Validação: {len(val_dataset)}, Teste: {len(test_dataset)}")
 
@@ -69,6 +69,7 @@ def treinamento(model, train_loader, val_loader, criterion, optimizer, epochs=EP
     scaler = torch.amp.GradScaler("cuda")
 
     for epoch in range(epochs):
+        print("teste")
         start_time = time.time()
         total_loss, correct, total = 0, 0, 0
 
@@ -143,6 +144,21 @@ def evaluate_model(model, test_loader):
     print(f"\n Acurácia final no conjunto de teste: {acc*100:.2f}%")
     return cm, acc
 
+
+# Função para salvar o modelo
+def salvar_modelo(model, optimizer, epoch, train_losses, val_losses, filepath="modelo_inception_dtm.pth"):
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'num_classes': NUM_CLASSES,
+        'patch_size': PATCH_SIZE
+    }, filepath)
+    print(f"\nModelo salvo em: {filepath}")
+
+
 # execuçã da função principal
 
 if __name__ == "__main__":
@@ -152,6 +168,12 @@ if __name__ == "__main__":
 
     train_losses, val_losses, train_accs, val_accs = treinamento(
         model, train_loader, val_loader, criterion, optimizer, EPOCHS
+    )
+
+    # Salvar o modelo na pasta Modelos/recente
+    salvar_modelo(
+        model, optimizer, EPOCHS, train_losses, val_losses, 
+        filepath=r"C:\Users\pichombas\Documents\Modelos\recente\modelo_inception_dtm_final.pth"
     )
 
     # Avaliação final
